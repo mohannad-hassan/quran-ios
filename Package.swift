@@ -322,6 +322,10 @@ private func dataTargets() -> [[Target]] {
             "OAuthServiceAppAuthImpl",
             .product(name: "AppAuth", package: "AppAuth-iOS"),
         ], testDependencies: ["AsyncUtilitiesForTesting", "SystemDependenciesFake", "OAuthServiceFake"]),
+
+        // MARK: - Quran.com APIs
+
+        target(type, name: "BookmarkAPI", hasTests: false, dependencies: ["AuthenticationClient"]),
     ]
 }
 
