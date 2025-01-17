@@ -9,6 +9,7 @@
 import AnnotationsService
 import AppDependencies
 import FeaturesSupport
+import BookmarkAPI
 import UIKit
 
 @MainActor
@@ -22,7 +23,8 @@ public struct BookmarksBuilder {
     // MARK: Public
 
     public func build(withListener listener: QuranNavigator) -> UIViewController {
-        let service = PageBookmarkService(persistence: container.pageBookmarkPersistence)
+        let service = PageBookmarkService(persistence: container.pageBookmarkPersistence,
+                                          apiService: BookmarkAPIServiceImpl(authenticationClient: container.authenticationClient))
         let viewModel = BookmarksViewModel(
             analytics: container.analytics,
             service: service,

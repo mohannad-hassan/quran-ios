@@ -19,6 +19,7 @@ import TranslationsFeature
 import TranslationVerseFeature
 import UIKit
 import WordPointerFeature
+import BookmarkAPI
 
 @MainActor
 public struct QuranBuilder {
@@ -34,7 +35,8 @@ public struct QuranBuilder {
         let highlightsService = QuranHighlightsService()
 
         let quran = ReadingPreferences.shared.reading.quran
-        let pageBookmarkService = PageBookmarkService(persistence: container.pageBookmarkPersistence)
+        let pageBookmarkService = PageBookmarkService(persistence: container.pageBookmarkPersistence,
+                                                      apiService: BookmarkAPIServiceImpl(authenticationClient: container.authenticationClient))
         let interactorDeps = QuranInteractor.Deps(
             quran: quran,
             analytics: container.analytics,

@@ -325,7 +325,10 @@ private func dataTargets() -> [[Target]] {
 
         // MARK: - Quran.com APIs
 
-        target(type, name: "BookmarkAPI", hasTests: false, dependencies: ["AuthenticationClient"]),
+        target(type, name: "BookmarkAPI", hasTests: false, dependencies: [
+            "AuthenticationClient",
+            "VLogging",
+            "QuranAnnotations"]),
     ]
 }
 
@@ -480,6 +483,7 @@ private func domainTargets() -> [[Target]] {
             "QuranTextKit",
             "Localization",
             "Analytics",
+            "BookmarkAPI",
         ], testDependencies: [
         ]),
 

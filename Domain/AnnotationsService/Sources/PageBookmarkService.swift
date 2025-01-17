@@ -10,12 +10,17 @@ import Combine
 import PageBookmarkPersistence
 import QuranAnnotations
 import QuranKit
+import Foundation
+import BookmarkAPI
+import VLogging
 
 public struct PageBookmarkService {
     // MARK: Lifecycle
 
-    public init(persistence: PageBookmarkPersistence) {
+    public init(persistence: PageBookmarkPersistence,
+                apiService: BookmarkAPIService) {
         self.persistence = persistence
+        self.apiService = apiService
     }
 
     // MARK: Public
@@ -27,7 +32,34 @@ public struct PageBookmarkService {
     }
 
     public func insertPageBookmark(_ page: Page) async throws {
-        try await persistence.insertPageBookmark(page.pageNumber)
+        let committedPage: Page
+        if let updatedPage = try await performInsertionAPI(page) {
+            committedPage = updatedPage
+        } else {
+            committedPage = page
+        }
+        try await persistence.insertPageBookmark(committedPage.pageNumber)
+    }
+
+    private func performInsertionAPI(_ page: Page) async throws -> Page? {
+        do {
+            // TODO: Hardfix "1" for now. The models don't reflect the BE IDs of the mushafs.
+            guard let request = try await apiService.createBookmarkRequest(forPageNumber: page.pageNumber,
+                                                                           mushafID: "1") else {
+                return nil
+            }
+            logger.info("Bookmark request for page \(page.pageNumber) is a success.")
+            if let resultPageNumber = try await request.execute() {
+                return Page(quran: page.quran, pageNumber: resultPageNumber)
+            }
+            else {
+                return page
+            }
+        }
+        catch {
+            logger.error("Failed to create bookmark: \(error)")
+            return nil
+        }
     }
 
     public func removePageBookmark(_ page: Page) async throws {
@@ -37,6 +69,7 @@ public struct PageBookmarkService {
     // MARK: Internal
 
     let persistence: PageBookmarkPersistence
+    let apiService: BookmarkAPIService
 }
 
 private extension PageBookmark {
