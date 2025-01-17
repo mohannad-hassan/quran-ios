@@ -1,5 +1,5 @@
 //
-//  File.swift
+//  CreateBookmarkRequest.swift
 //  QuranEngine
 //
 //  Created by Mohannad Hassan on 15/01/2025.
@@ -38,11 +38,13 @@ public struct CreateBookmarkRequest {
         let bookmark: BookmarkAPIJSON
     }
 
-    init(pageNumber: Int,
-         mushafID: String,
-         networkManager: AuthenticatedNetworkManager) {
+    init(
+        pageNumber: Int,
+        mushafID: String,
+        networkManager: AuthenticatedNetworkManager
+    ) {
         self.networkManager = networkManager
-        self.requestBody = RequestBody(key: pageNumber, mushaf: mushafID)
+        requestBody = RequestBody(key: pageNumber, mushaf: mushafID)
     }
 
     // Simplify logic for now; return the page number.
@@ -53,9 +55,11 @@ public struct CreateBookmarkRequest {
     public func execute() async throws -> Int? {
         let encoder = JSONEncoder()
         let requestData = try encoder.encode(requestBody)
-        let (data, response) = try await networkManager.request(path: "/bookmarks",
-                                                                method: "POST",
-                                                                payload: requestData)
+        let (data, response) = try await networkManager.request(
+            path: "/bookmarks",
+            method: "POST",
+            payload: requestData
+        )
         guard let response = response as? HTTPURLResponse, response.statusCode == 200 else {
             throw TODOErrors.someError
         }

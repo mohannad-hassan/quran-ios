@@ -5,26 +5,26 @@
 //  Created by Mohannad Hassan on 15/01/2025.
 //
 
-import Foundation
 import AuthenticationClient
+import Foundation
 import QuranAnnotations
 import VLogging
 
 public protocol BookmarkAPIService {
-
     func createBookmarkRequest(forPageNumber pageNumber: Int, mushafID: String) async throws -> CreateBookmarkRequest?
 }
 
 public final class BookmarkAPIServiceImpl: BookmarkAPIService {
-
     private let authenticationClient: AuthenticationClient?
 
     public init(authenticationClient: AuthenticationClient?) {
         self.authenticationClient = authenticationClient
     }
 
-    public func createBookmarkRequest(forPageNumber pageNumber: Int,
-                                      mushafID: String) async throws -> CreateBookmarkRequest? {
+    public func createBookmarkRequest(
+        forPageNumber pageNumber: Int,
+        mushafID: String
+    ) async throws -> CreateBookmarkRequest? {
         guard let authenticationClient else {
             logger.info("Bookmarks APIs. No authentication client found")
             return nil
@@ -37,17 +37,17 @@ public final class BookmarkAPIServiceImpl: BookmarkAPIService {
         let request = CreateBookmarkRequest(
             pageNumber: pageNumber,
             mushafID: mushafID,
-            networkManager: .init(authenticationClient: authenticationClient,
-                                  session: URLSession.shared)
+            networkManager: .init(
+                authenticationClient: authenticationClient,
+                session: URLSession.shared
+            )
         )
 
         return request
     }
 }
 
-
 class AuthenticatedNetworkManager {
-
     private let baseURL = "https://staging-oauth2.quran.foundation/auth/v1"
     private let authenticationClient: AuthenticationClient
     private let session: URLSession

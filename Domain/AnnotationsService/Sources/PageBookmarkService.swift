@@ -6,19 +6,21 @@
 //  Copyright © 2023 Quran.com. All rights reserved.
 //
 
+import BookmarkAPI
 import Combine
+import Foundation
 import PageBookmarkPersistence
 import QuranAnnotations
 import QuranKit
-import Foundation
-import BookmarkAPI
 import VLogging
 
 public struct PageBookmarkService {
     // MARK: Lifecycle
 
-    public init(persistence: PageBookmarkPersistence,
-                apiService: BookmarkAPIService) {
+    public init(
+        persistence: PageBookmarkPersistence,
+        apiService: BookmarkAPIService
+    ) {
         self.persistence = persistence
         self.apiService = apiService
     }
@@ -32,11 +34,10 @@ public struct PageBookmarkService {
     }
 
     public func insertPageBookmark(_ page: Page) async throws {
-        let committedPage: Page
-        if let updatedPage = try await performInsertionAPI(page) {
-            committedPage = updatedPage
+        let committedPage: Page = if let updatedPage = try await performInsertionAPI(page) {
+            updatedPage
         } else {
-            committedPage = page
+            page
         }
         try await persistence.insertPageBookmark(committedPage.pageNumber)
     }
@@ -44,19 +45,19 @@ public struct PageBookmarkService {
     private func performInsertionAPI(_ page: Page) async throws -> Page? {
         do {
             // TODO: Hardfix "1" for now. The models don't reflect the BE IDs of the mushafs.
-            guard let request = try await apiService.createBookmarkRequest(forPageNumber: page.pageNumber,
-                                                                           mushafID: "1") else {
+            guard let request = try await apiService.createBookmarkRequest(
+                forPageNumber: page.pageNumber,
+                mushafID: "1"
+            ) else {
                 return nil
             }
             logger.info("Bookmark request for page \(page.pageNumber) is a success.")
             if let resultPageNumber = try await request.execute() {
                 return Page(quran: page.quran, pageNumber: resultPageNumber)
-            }
-            else {
+            } else {
                 return page
             }
-        }
-        catch {
+        } catch {
             logger.error("Failed to create bookmark: \(error)")
             return nil
         }
