@@ -20,9 +20,9 @@ public struct SyncrhonizationManager {
             Task { await self.sync() }
         }
 
-        let bookmarksCancellable = bookmarksPersistence.modificationSignal.sink {
-            scheduler.localDataModified()
-        }
+//        let bookmarksCancellable = bookmarksPersistence.modificationSignal.sink {
+//            scheduler.localDataModified()
+//        }
     }
 
     private func sync() async {
