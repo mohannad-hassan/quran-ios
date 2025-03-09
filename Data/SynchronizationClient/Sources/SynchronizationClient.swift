@@ -66,7 +66,9 @@ class SynchronizationClient {
             )
             }
         }
-        let _ = try await pushLocalBookmarkMutations(localChanges)
+        if !localChanges.isEmpty {
+            let _ = try await pushLocalBookmarkMutations(localChanges)
+        }
 
         return .init(bookmarksMutations: remoteBookmarks.map(\.toMutatedModel) + local)
     }
@@ -85,18 +87,26 @@ class SynchronizationClient {
             }
         }
         let upstream = upstreamMap.values.sorted { $0.resource.creationDate < $1.resource.creationDate }
+
         // Checking mainly by the page number. If we have the remote ID persisted locally, then it should
         // come up when filtering by the page number.
-//        let upstreamPages = upstream.map { $0.resource.page }
-//        let localPages = local.map { $0.page }
-//        let resourcesModifiedInBoth: [Int] = upstreamPages.filter(localPages.contains)
-//
-//        for page in resourcesModifiedInBoth {
-//            let upstreamChange = upstream.first { $0.resource.page == page }!
-//
-//        }
+        let upstreamPages = upstream.map { $0.resource.page }
+        let localPages = local.map { $0.page }
+        let resourcesModifiedInBoth: [Int] = upstreamPages.filter(localPages.contains)
 
-        return (upstream: upstream.map(\.toResolution), local: local)
+        var filteredOutLocal: [MutatedPageBookmarkModel] = []
+        for page in resourcesModifiedInBoth {
+            let upstreamChange = upstream.first { $0.resource.page == page }!
+            let localChange = local.first { $0.page == page }!
+            switch (upstreamChange.mutation, localChange.mutation) {
+            case (.deleted, .deleted):
+                filteredOutLocal.append(localChange)
+            default:
+                break
+            }
+        }
+
+        return (upstream: upstream.map(\.toResolution), local: local.filter { !filteredOutLocal.contains($0) })
     }
 }
 

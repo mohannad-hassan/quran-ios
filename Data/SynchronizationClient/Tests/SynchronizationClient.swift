@@ -156,4 +156,38 @@ final class SynchronizationClientTests: XCTestCase {
 
         await fulfillment(of: [pushLocalBookmarksExpectation], timeout: 2)
     }
+
+    func testSameBookmarkDeletedOnBoth() async throws {
+        // First, deleted on both branches.
+        let a1 = PageBookmarkPersistenceModel(remoteID: "A1", page: 10, creationDate: .init(timeIntervalSince1970: 40))
+        let remoteChanges: [RemoteChange<PageBookmarkPersistenceModel>] = [
+            .init(
+                resourceID: "A1",
+                mutation: .deleted,
+                resource: a1
+            ),
+        ]
+        let localChanges: [MutatedPageBookmarkModel] = [
+            .init(remoteID: "A1", page: 10, modificationDate: .init(timeIntervalSince1970: 50), mutation: .deleted),
+        ]
+
+        sut = SynchronizationClient(
+            lastSyncedAt: .distantPast,
+            fetchRemoteBookmarkUpdates: { _ in remoteChanges},
+            fetchLocalBookmarkMutations: { localChanges },
+            pushLocalBookmarkMutations: { pushed in
+                XCTFail("Expected to treat the local changes as redundant. Should not push anything.")
+                return Date()
+            }
+        )
+
+        let result = try await sut.execute()
+        let expected: [MutatedPageBookmarkModel] = [
+            .init(remoteID: a1.remoteID, page: a1.page, modificationDate: a1.creationDate, mutation: .deleted),
+        ]
+        // The modification date is irrelevant in this case.
+        XCTAssertEqual(expected.map(\.page), result.bookmarksMutations.map(\.page), "Match pages")
+        XCTAssertEqual(expected.map(\.remoteID), result.bookmarksMutations.map(\.remoteID), "Match remote IDs")
+        XCTAssertEqual(expected.map(\.mutation), result.bookmarksMutations.map(\.mutation), "Match mutation")
+    }
 }

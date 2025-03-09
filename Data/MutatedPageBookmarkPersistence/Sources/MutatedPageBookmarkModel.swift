@@ -16,7 +16,7 @@ import Foundation
 ///
 /// See `MutatedPageBookmarkPersistence` for more information regarding
 /// the relationship between the local mutated bookmarks and the upstream-synced bookmarks.
-public struct MutatedPageBookmarkModel {
+public struct MutatedPageBookmarkModel: Equatable {
     public enum Mutation {
         case created
         case deleted
