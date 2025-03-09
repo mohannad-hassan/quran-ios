@@ -12,6 +12,12 @@ public struct PageBookmarkPersistenceModel: Equatable {
     public let remoteID: String?
     public let page: Int
     public let creationDate: Date
+
+    public init(remoteID: String?, page: Int, creationDate: Date) {
+        self.remoteID = remoteID
+        self.page = page
+        self.creationDate = creationDate
+    }
 }
 
 extension PageBookmarkPersistenceModel {

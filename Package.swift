@@ -341,7 +341,7 @@ private func dataTargets() -> [[Target]] {
             .product(name: "AppAuth", package: "AppAuth-iOS"),
         ], testDependencies: ["AsyncUtilitiesForTesting", "SystemDependenciesFake", "OAuthServiceFake"]),
 
-        target(type, name: "SynchronizationClient", hasTests: false, dependencies: [
+        target(type, name: "SynchronizationClient", hasTests: true, dependencies: [
             "PageBookmarkPersistence",
         ]),
     ]

@@ -33,4 +33,11 @@ public struct MutatedPageBookmarkModel {
     /// If `remoteID` is `nil`, then this will be `.created`. For remote bookmarks, this will be
     /// `.deleted`.
     public let mutation: Mutation
+
+    public init(remoteID: String?, page: Int, modificationDate: Date, mutation: Mutation) {
+        self.remoteID = remoteID
+        self.page = page
+        self.modificationDate = modificationDate
+        self.mutation = mutation
+    }
 }

@@ -29,7 +29,7 @@ public struct SyncrhonizationManager {
         // protect access and mutual exclusion and stuff
         do {
             let client: SynchronizationClient! = nil
-            try await client.start()
+            try await client.execute()
             // Expected to get a Date value here.
         } catch {
 
