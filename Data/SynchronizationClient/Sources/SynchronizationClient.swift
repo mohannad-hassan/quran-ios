@@ -13,9 +13,10 @@ import QuranKit
 
 class SynchronizationClient {
 
-    // TODO: Can we get rid of using PageBookmarkPersistenceModel?
+    // TODO: Can we avoid PageBookmarkPersistenceModel?
     typealias RemoteBookmarkFetcher = (Date) async throws -> [RemoteChange<PageBookmarkPersistenceModel>]
     typealias LocalBookmarkFetcher = () async throws -> [MutatedPageBookmarkModel]
+    typealias LocalBookmarkPusher = ([RemoteChange<PageBookmarkPersistenceModel>]) async throws -> Date
 
     enum Resolution<T> {
         case create(T)
@@ -31,28 +32,43 @@ class SynchronizationClient {
 
     let fetchRemoteBookmarkUpdates: RemoteBookmarkFetcher
     let fetchLocalBookmarkMutations: LocalBookmarkFetcher
-
+    let pushLocalBookmarkMutations: LocalBookmarkPusher
 
     init(lastSyncedAt: Date,
-        fetchRemoteBookmarkUpdates: @escaping RemoteBookmarkFetcher,
-         fetchLocalBookmarkMutations: @escaping LocalBookmarkFetcher) {
+         fetchRemoteBookmarkUpdates: @escaping RemoteBookmarkFetcher,
+         fetchLocalBookmarkMutations: @escaping LocalBookmarkFetcher,
+         pushLocalBookmarkMutations: @escaping LocalBookmarkPusher) {
         self.fetchRemoteBookmarkUpdates = fetchRemoteBookmarkUpdates
         self.fetchLocalBookmarkMutations = fetchLocalBookmarkMutations
         self.lastSyncedAt = lastSyncedAt
+        self.pushLocalBookmarkMutations = pushLocalBookmarkMutations
     }
 
     func execute() async throws -> Response {
-        let (remoteBookmarks, _) = processBookmarks(
+        let (remoteBookmarks, local) = processBookmarks(
             // We may cut it short and have the passed closure pass the date.
             upstream: try await fetchRemoteBookmarkUpdates(lastSyncedAt),
             local: try await fetchLocalBookmarkMutations()
         )
 
-//        let pushRequest = PushLocalUpdateRequest(bookmarkChanges: [/* map localBookmarkMutations */])
-//        let pushResponse = try await pushRequest.start()
+        let localChanges = local.map { bookmark in
+            let resource = PageBookmarkPersistenceModel(
+                remoteID: bookmark.remoteID,
+                page: bookmark.page,
+                creationDate: bookmark.modificationDate
+            )
+            return switch bookmark.mutation {
+            case .created: RemoteChange<PageBookmarkPersistenceModel>(
+                resourceID: resource.remoteID ?? "", mutation: .created, resource: resource
+            )
+            case .deleted: RemoteChange<PageBookmarkPersistenceModel>(
+                resourceID: resource.remoteID ?? "", mutation: .deleted, resource: resource
+            )
+            }
+        }
+        let _ = try await pushLocalBookmarkMutations(localChanges)
 
-
-        return .init(bookmarksMutations: remoteBookmarks.map(\.toMutatedModel))
+        return .init(bookmarksMutations: remoteBookmarks.map(\.toMutatedModel) + local)
     }
 
     private func processBookmarks(upstream input: [RemoteChange<PageBookmarkPersistenceModel>],
@@ -80,7 +96,7 @@ class SynchronizationClient {
 //
 //        }
 
-        return (upstream: upstream.map(\.toResolution), local: [])
+        return (upstream: upstream.map(\.toResolution), local: local)
     }
 }
 

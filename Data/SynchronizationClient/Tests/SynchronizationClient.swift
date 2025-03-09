@@ -36,7 +36,8 @@ final class SynchronizationClientTests: XCTestCase {
         sut = SynchronizationClient(
             lastSyncedAt: .distantPast,
             fetchRemoteBookmarkUpdates: { _ in remoteChanges},
-            fetchLocalBookmarkMutations: { [] }
+            fetchLocalBookmarkMutations: { [] },
+            pushLocalBookmarkMutations: {_ in Date() }
         )
 
         let result = try await sut.execute()
@@ -87,7 +88,8 @@ final class SynchronizationClientTests: XCTestCase {
         sut = SynchronizationClient(
             lastSyncedAt: .distantPast,
             fetchRemoteBookmarkUpdates: { _ in remoteChanges},
-            fetchLocalBookmarkMutations: { [] }
+            fetchLocalBookmarkMutations: { [] },
+            pushLocalBookmarkMutations: {_ in Date() }
         )
 
         let result = try await sut.execute()
@@ -102,5 +104,56 @@ final class SynchronizationClientTests: XCTestCase {
                        "Match remote IDs")
         XCTAssertEqual(expected.map(\.mutation), result.bookmarksMutations.map(\.mutation),
                        "Match mutation types.")
+    }
+
+    func testUncollidingLocalChanges() async throws {
+        let a1 = PageBookmarkPersistenceModel(remoteID: "A1", page: 10, creationDate: .init(timeIntervalSince1970: 10))
+        let a2 = PageBookmarkPersistenceModel(remoteID: "A2", page: 12, creationDate: .init(timeIntervalSince1970: 100))
+        let remoteChanges: [RemoteChange<PageBookmarkPersistenceModel>] = [
+            .init(
+                resourceID: "A1",
+                mutation: .created,
+                resource: a1
+            ),
+            .init(
+                resourceID: "A2",
+                mutation: .deleted,
+                resource: a2
+            ),
+        ]
+        let localChanges: [MutatedPageBookmarkModel] = [
+            .init(remoteID: nil, page: 100, modificationDate: .init(timeIntervalSince1970: 50), mutation: .created),
+            .init(remoteID: "Z1", page: 99, modificationDate: .init(timeIntervalSince1970: 45), mutation: .deleted),
+        ]
+
+        var pushLocalBookmarksExpectation: XCTestExpectation!
+        sut = SynchronizationClient(
+            lastSyncedAt: .distantPast,
+            fetchRemoteBookmarkUpdates: { _ in remoteChanges},
+            fetchLocalBookmarkMutations: { localChanges },
+            pushLocalBookmarkMutations: { pushed in
+                pushLocalBookmarksExpectation.fulfill()
+                XCTAssertEqual(pushed.map(\.resource.page), localChanges.map(\.page))
+                XCTAssertEqual(pushed.map(\.mutation), [.created, .deleted], "Should have the correct mutation.")
+                return Date()
+            }
+        )
+
+        pushLocalBookmarksExpectation = expectation(description: "Expected local bookmarks to be pushed.")
+
+        let result = try await sut.execute()
+        let expected: [MutatedPageBookmarkModel] = [
+            .init(remoteID: a1.remoteID, page: a1.page, modificationDate: a1.creationDate, mutation: .created),
+            .init(remoteID: a2.remoteID, page: a2.page, modificationDate: a2.creationDate, mutation: .deleted),
+        ] + localChanges
+
+        XCTAssertEqual(expected.map(\.page), result.bookmarksMutations.map(\.page),
+                       "Match pages")
+        XCTAssertEqual(expected.map(\.remoteID), result.bookmarksMutations.map(\.remoteID),
+                       "Match remote IDs")
+        XCTAssertEqual(expected.map(\.mutation), result.bookmarksMutations.map(\.mutation),
+                       "Match mutation types.")
+
+        await fulfillment(of: [pushLocalBookmarksExpectation], timeout: 2)
     }
 }
