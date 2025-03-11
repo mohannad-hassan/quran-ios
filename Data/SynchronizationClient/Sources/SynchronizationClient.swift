@@ -16,7 +16,7 @@ class SynchronizationClient {
     // TODO: Can we avoid PageBookmarkPersistenceModel?
     typealias RemoteBookmarkFetcher = (Date) async throws -> [RemoteChange<PageBookmarkPersistenceModel>]
     typealias LocalBookmarkFetcher = () async throws -> [MutatedPageBookmarkModel]
-    typealias LocalBookmarkPusher = ([RemoteChange<PageBookmarkPersistenceModel>]) async throws -> Date
+    typealias LocalBookmarkPusher = ([RemoteChange<PageBookmarkPersistenceModel>]) async throws -> (Date, [RemoteChange<PageBookmarkPersistenceModel>])
 
     enum Resolution<T> {
         case create(T)
@@ -66,11 +66,22 @@ class SynchronizationClient {
             )
             }
         }
+        let pushedLocal: [MutatedPageBookmarkModel]
         if !localChanges.isEmpty {
-            let _ = try await pushLocalBookmarkMutations(localChanges)
+            let response = try await pushLocalBookmarkMutations(localChanges)
+            pushedLocal = response.1.map {
+                // This should be an error.
+                .init(remoteID: $0.resource.remoteID ?? "",
+                      page: $0.resource.page,
+                      modificationDate: $0.resource.creationDate,
+                      mutation: $0.mutation == .created ? .created : .deleted)
+            }
+        }
+        else {
+            pushedLocal = []
         }
 
-        return .init(bookmarksMutations: remoteBookmarks.map(\.toMutatedModel) + local)
+        return .init(bookmarksMutations: remoteBookmarks.map(\.toMutatedModel) + pushedLocal)
     }
 
     private func processBookmarks(upstream input: [RemoteChange<PageBookmarkPersistenceModel>],
@@ -99,7 +110,10 @@ class SynchronizationClient {
             let upstreamChange = upstream.first { $0.resource.page == page }!
             let localChange = local.first { $0.page == page }!
             switch (upstreamChange.mutation, localChange.mutation) {
-            case (.deleted, .deleted):
+            case (.deleted, .deleted),
+                // Ideally, for the case of a bookmark created on both branches, the more recent one should
+                // be kept. However, for the sake of simplicity, we'll just keep the remote one.
+                (.created, .created):
                 filteredOutLocal.append(localChange)
             default:
                 break
