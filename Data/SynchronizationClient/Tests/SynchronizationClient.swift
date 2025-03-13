@@ -159,7 +159,7 @@ final class SynchronizationClientTests: XCTestCase {
             .init(remoteID: a2.remoteID, page: a2.page, modificationDate: a2.creationDate, mutation: .deleted),
             .init(remoteID: page100_remoteID, page: 100, modificationDate: .init(timeIntervalSince1970: 50), mutation: .created),
             .init(remoteID: "Z1", page: 99, modificationDate: .init(timeIntervalSince1970: 45), mutation: .deleted),
-        ]
+        ].sorted { $0.modificationDate < $1.modificationDate }
 
         XCTAssertEqual(expected.map(\.page), result.bookmarksMutations.map(\.page),
                        "Match pages")
@@ -363,5 +363,125 @@ final class SynchronizationClientTests: XCTestCase {
             .init(remoteID: b1.remoteID, page: b1.page, modificationDate: b1.creationDate, mutation: .created),
         ]
         XCTAssertEqual(result.bookmarksMutations, expected)
+    }
+
+    func testMoreComplexScenario() async throws {
+        let a1 = PageBookmarkPersistenceModel(remoteID: "A1", page: 10, creationDate: .init(timeIntervalSince1970: 40))
+
+        let a2 = PageBookmarkPersistenceModel(remoteID: "A2", page: 12, creationDate: .init(timeIntervalSince1970: 100))
+        let a3 = PageBookmarkPersistenceModel(remoteID: "A3", page: 12, creationDate: .init(timeIntervalSince1970: 110))
+
+        let a4 = PageBookmarkPersistenceModel(remoteID: "A4", page: 120, creationDate: .init(timeIntervalSince1970: 150))
+
+        let b1 = PageBookmarkPersistenceModel(remoteID: "B1", page: 30, creationDate: .init(timeIntervalSince1970: 60))
+        let b2 = PageBookmarkPersistenceModel(remoteID: "B2", page: 33, creationDate: .init(timeIntervalSince1970: 65))
+
+        let remoteChanges: [RemoteChange<PageBookmarkPersistenceModel>] = [
+            .init(
+                resourceID: "A1",
+                mutation: .deleted,
+                resource: a1
+            ),
+            .init(
+                resourceID: "A2",
+                mutation: .deleted,
+                resource: a2
+            ),
+            .init(
+                resourceID: "A3",
+                mutation: .created,
+                resource: a3
+            ),
+            .init(
+                resourceID: "A4",
+                mutation: .created,
+                resource: a4
+            ),
+            .init(
+                resourceID: "B1",
+                mutation: .created,
+                resource: b1
+            ),
+            .init(
+                resourceID: "B2",
+                mutation: .deleted,
+                resource: b2
+            ),
+        ]
+
+        let localChanges: [MutatedPageBookmarkModel] = [
+            // Deleted on both
+            .init(remoteID: a1.remoteID!, page: a1.page, modificationDate: .init(timeIntervalSince1970: 50), mutation: .deleted),
+            // Deleted on both, created again on both
+            .init(remoteID: a2.remoteID!, page: a2.page, modificationDate: .init(timeIntervalSince1970: 60), mutation: .deleted),
+            .init(remoteID: nil, page: a2.page, modificationDate: .init(timeIntervalSince1970: 70), mutation: .created),
+            // Created on both
+            .init(remoteID: nil, page: a4.page, modificationDate: .init(timeIntervalSince1970: 160), mutation: .created),
+            // Deleted locally only
+            .init(remoteID: "C1", page: 300, modificationDate: .init(timeIntervalSince1970: 50), mutation: .deleted),
+            // Created locally only
+            .init(remoteID: nil, page: 400, modificationDate: .init(timeIntervalSince1970: 201), mutation: .created),
+            .init(remoteID: nil, page: 410, modificationDate: .init(timeIntervalSince1970: 250), mutation: .created),
+        ]
+
+        let expectedLocalChangesToPush: [MutatedPageBookmarkModel] = [
+            .init(remoteID: "C1", page: 300, modificationDate: .init(timeIntervalSince1970: 50), mutation: .deleted),
+            .init(remoteID: nil, page: 400, modificationDate: .init(timeIntervalSince1970: 201), mutation: .created),
+            .init(remoteID: nil, page: 410, modificationDate: .init(timeIntervalSince1970: 250), mutation: .created),
+        ]
+        let pushingExpectation = expectation(description: "Expected to push local changes.")
+        let pushingResponse: [RemoteChange<PageBookmarkPersistenceModel>] = [
+            .init(
+                resourceID: "C1",
+                mutation: .deleted,
+                resource: .init(remoteID: "C1", page: 300, creationDate: .init(timeIntervalSince1970: 50))
+            ),
+            .init(
+                resourceID: "E1",
+                mutation: .created,
+                resource: .init(remoteID: "E1", page: 400, creationDate: .init(timeIntervalSince1970: 201))
+            ),
+            .init(
+                resourceID: "E2",
+                mutation: .created,
+                resource: .init(remoteID: "E2", page: 410, creationDate: .init(timeIntervalSince1970: 250))
+            ),
+        ]
+
+        sut = SynchronizationClient(
+            lastSyncedAt: .distantPast,
+            fetchRemoteBookmarkUpdates: { _ in remoteChanges},
+            fetchLocalBookmarkMutations: { localChanges },
+            pushLocalBookmarkMutations: { pushed in
+                pushingExpectation.fulfill()
+                XCTAssertEqual(expectedLocalChangesToPush.map(\.page), pushed.map(\.resource).map(\.page))
+                XCTAssertEqual(expectedLocalChangesToPush.map(\.modificationDate), pushed.map(\.resource).map(\.creationDate))
+                return (Date(), pushingResponse)
+            }
+        )
+
+        let result = try await sut.execute()
+        let expected: [MutatedPageBookmarkModel] = [
+            .init(remoteID: a1.remoteID!, page: a1.page, modificationDate: a1.creationDate, mutation: .deleted),
+            .init(remoteID: a2.remoteID!, page: a2.page, modificationDate: a2.creationDate, mutation: .deleted),
+            .init(remoteID: a3.remoteID!, page: a3.page, modificationDate: a3.creationDate, mutation: .created),
+            .init(remoteID: a4.remoteID!, page: a4.page, modificationDate: a4.creationDate, mutation: .created),
+            .init(remoteID: b1.remoteID!, page: b1.page, modificationDate: b1.creationDate, mutation: .created),
+            .init(remoteID: b2.remoteID!, page: b2.page, modificationDate: b2.creationDate, mutation: .deleted),
+            .init(remoteID: "C1", page: 300, modificationDate: .init(timeIntervalSince1970: 50), mutation: .deleted),
+            .init(remoteID: "E1", page: 400, modificationDate: .init(timeIntervalSince1970: 201), mutation: .created),
+            .init(remoteID: "E2", page: 410, modificationDate: .init(timeIntervalSince1970: 250), mutation: .created),
+        ].sorted {
+                $0.modificationDate < $1.modificationDate
+            }
+        // Break down the assertions to assert equality by several properties
+        XCTAssertEqual(result.bookmarksMutations.map(\.page), expected.map(\.page))
+        XCTAssertEqual(result.bookmarksMutations.compactMap(\.remoteID), expected.compactMap(\.remoteID))
+        XCTAssertEqual(result.bookmarksMutations.map(\.mutation), expected.map(\.mutation))
+        XCTAssertEqual(result.bookmarksMutations.map(\.modificationDate), expected.map(\.modificationDate))
+
+        XCTAssertEqual(result.bookmarksMutations, expected)
+
+        await fulfillment(of: [pushingExpectation], timeout: 2)
     }
 }

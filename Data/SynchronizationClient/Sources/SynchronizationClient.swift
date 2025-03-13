@@ -81,7 +81,11 @@ class SynchronizationClient {
             pushedLocal = []
         }
 
-        return .init(bookmarksMutations: remoteBookmarks.map(\.toMutatedModel) + pushedLocal)
+        let result = (remoteBookmarks.map(\.toMutatedModel) + pushedLocal).sorted {
+            $0.modificationDate < $1.modificationDate
+        }
+
+        return .init(bookmarksMutations: result)
     }
 
     private func processBookmarks(upstream input: [RemoteChange<PageBookmarkPersistenceModel>],
@@ -115,7 +119,7 @@ class SynchronizationClient {
                 filteredOutLocal.append(localDeletion)
             }
             if let localCreation = localChange.first(where: { $0.mutation == .created }),
-                    upstreamChange.first(where: { $0.mutation == .created }) != nil {
+               upstreamChange.first(where: { $0.mutation == .created }) != nil {
                 filteredOutLocal.append(localCreation)
             }
         }
