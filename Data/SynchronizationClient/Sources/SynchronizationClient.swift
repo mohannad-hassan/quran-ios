@@ -107,16 +107,16 @@ class SynchronizationClient {
 
         var filteredOutLocal: [MutatedPageBookmarkModel] = []
         for page in resourcesModifiedInBoth {
-            let upstreamChange = upstream.first { $0.resource.page == page }!
-            let localChange = local.first { $0.page == page }!
-            switch (upstreamChange.mutation, localChange.mutation) {
-            case (.deleted, .deleted),
-                // Ideally, for the case of a bookmark created on both branches, the more recent one should
-                // be kept. However, for the sake of simplicity, we'll just keep the remote one.
-                (.created, .created):
-                filteredOutLocal.append(localChange)
-            default:
-                break
+            let upstreamChange = upstream.filter { $0.resource.page == page }
+            let localChange = local.filter { $0.page == page }
+
+            if let localDeletion = localChange.first(where: { $0.mutation == .deleted }),
+               upstreamChange.first(where: { $0.mutation == .deleted }) != nil {
+                filteredOutLocal.append(localDeletion)
+            }
+            if let localCreation = localChange.first(where: { $0.mutation == .created }),
+                    upstreamChange.first(where: { $0.mutation == .created }) != nil {
+                filteredOutLocal.append(localCreation)
             }
         }
 

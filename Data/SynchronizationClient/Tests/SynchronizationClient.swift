@@ -214,7 +214,7 @@ final class SynchronizationClientTests: XCTestCase {
             ),
         ]
         let localChanges: [MutatedPageBookmarkModel] = [
-            .init(remoteID: "A1", page: 10, modificationDate: .init(timeIntervalSince1970: 50), mutation: .created),
+            .init(remoteID: nil, page: 10, modificationDate: .init(timeIntervalSince1970: 50), mutation: .created),
         ]
 
         sut = SynchronizationClient(
@@ -237,9 +237,7 @@ final class SynchronizationClientTests: XCTestCase {
         XCTAssertEqual(expected, result.bookmarksMutations, "Expected to keep the remote change.")
     }
 
-    func testDeletionsAndCreationsForSamePage() async throws {
-        // Deleted remotely and locally.
-        // Created locally again.
+    func test_deletedLocallyRemotely_createdLocally() async throws {
         let a1 = PageBookmarkPersistenceModel(remoteID: "A1", page: 10, creationDate: .init(timeIntervalSince1970: 40))
         let remoteChanges: [RemoteChange<PageBookmarkPersistenceModel>] = [
             .init(
@@ -288,5 +286,82 @@ final class SynchronizationClientTests: XCTestCase {
         XCTAssertEqual(result.bookmarksMutations, expected)
 
         await fulfillment(of: [localChangesExpectation], timeout: 2)
+    }
+
+    func test_deletedLocallyRemotely_createdRemotely() async throws {
+        let a1 = PageBookmarkPersistenceModel(remoteID: "A1", page: 10, creationDate: .init(timeIntervalSince1970: 40))
+        let b1 = PageBookmarkPersistenceModel(remoteID: "B1", page: 10, creationDate: .init(timeIntervalSince1970: 60))
+        let remoteChanges: [RemoteChange<PageBookmarkPersistenceModel>] = [
+            .init(
+                resourceID: "A1",
+                mutation: .deleted,
+                resource: a1
+            ),
+            .init(
+                resourceID: "B1",
+                mutation: .created,
+                resource: b1
+            ),
+        ]
+        let localChanges: [MutatedPageBookmarkModel] = [
+            .init(remoteID: "A1", page: 10, modificationDate: .init(timeIntervalSince1970: 50), mutation: .deleted),
+        ]
+
+        sut = SynchronizationClient(
+            lastSyncedAt: .distantPast,
+            fetchRemoteBookmarkUpdates: { _ in remoteChanges},
+            fetchLocalBookmarkMutations: { localChanges },
+            pushLocalBookmarkMutations: { pushed in
+                XCTFail("Expected to treat the local changes as redundant. Should not push anything.")
+                return (Date(), [])
+            }
+        )
+
+        let result = try await sut.execute()
+        let expected: [MutatedPageBookmarkModel] = [
+            // The deletion's timestamp is irrelevant here.
+            .init(remoteID: a1.remoteID, page: a1.page, modificationDate: a1.creationDate, mutation: .deleted),
+            .init(remoteID: b1.remoteID, page: b1.page, modificationDate: b1.creationDate, mutation: .created),
+        ]
+        XCTAssertEqual(result.bookmarksMutations, expected)
+    }
+
+    func test_deletedCreatedOnBoth() async throws {
+        let a1 = PageBookmarkPersistenceModel(remoteID: "A1", page: 10, creationDate: .init(timeIntervalSince1970: 40))
+        let b1 = PageBookmarkPersistenceModel(remoteID: "B1", page: 10, creationDate: .init(timeIntervalSince1970: 60))
+        let remoteChanges: [RemoteChange<PageBookmarkPersistenceModel>] = [
+            .init(
+                resourceID: "A1",
+                mutation: .deleted,
+                resource: a1
+            ),
+            .init(
+                resourceID: "B1",
+                mutation: .created,
+                resource: b1
+            ),
+        ]
+        let localChanges: [MutatedPageBookmarkModel] = [
+            .init(remoteID: "A1", page: 10, modificationDate: .init(timeIntervalSince1970: 50), mutation: .deleted),
+            .init(remoteID: nil, page: 10, modificationDate: .init(timeIntervalSince1970: 55), mutation: .created),
+        ]
+
+        sut = SynchronizationClient(
+            lastSyncedAt: .distantPast,
+            fetchRemoteBookmarkUpdates: { _ in remoteChanges},
+            fetchLocalBookmarkMutations: { localChanges },
+            pushLocalBookmarkMutations: { pushed in
+                XCTFail("Expected to treat the local changes as redundant. Should not push anything.")
+                return (Date(), [])
+            }
+        )
+
+        let result = try await sut.execute()
+        let expected: [MutatedPageBookmarkModel] = [
+            // The deletion's timestamp is irrelevant here.
+            .init(remoteID: a1.remoteID, page: a1.page, modificationDate: a1.creationDate, mutation: .deleted),
+            .init(remoteID: b1.remoteID, page: b1.page, modificationDate: b1.creationDate, mutation: .created),
+        ]
+        XCTAssertEqual(result.bookmarksMutations, expected)
     }
 }
