@@ -8,12 +8,18 @@
 import Foundation
 import PageBookmarkPersistence
 
-// We may need to convert this into an actor. This will probably be the main entr point of the API.
-public struct SyncrhonizationManager {
+// We may need to convert this into an actor. This will probably be the main entry point of the API.
+public class SyncrhonizationManager {
 
     private let scheduler: SerializationScheduler
     private let bookmarksPersistence: PageBookmarkPersistence
     private let syncInfoPersistence: SyncInfoPersistence
+
+    init(scheduler: SerializationScheduler, bookmarksPersistence: PageBookmarkPersistence, syncInfoPersistence: SyncInfoPersistence) {
+        self.scheduler = scheduler
+        self.bookmarksPersistence = bookmarksPersistence
+        self.syncInfoPersistence = syncInfoPersistence
+    }
 
     func setup() {
         let schedulerCancellable = scheduler.invokationSignal.sink {
@@ -35,4 +41,15 @@ public struct SyncrhonizationManager {
 
         }
     }
+}
+
+extension SyncrhonizationManager {
+    static func instance(bookmarksConf: BookmarksConfiguration?,
+                         notesConf: NotesConfiguration?) -> SyncrhonizationManager {
+        fatalError()
+    }
+}
+
+public struct NotesConfiguration {
+
 }

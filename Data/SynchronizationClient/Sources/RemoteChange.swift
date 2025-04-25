@@ -7,12 +7,19 @@
 
 import Foundation
 
+public enum Mutation {
+    case created, updated, deleted
+}
+
 struct RemoteChange<T> {
-    enum Mutation {
-        case created, updated, deleted
-    }
 
     let resourceID: String
     let mutation: Mutation
     let resource: T
+}
+
+public struct Change<T> {
+    public let mutation: Mutation
+    public let resource: T
+    public let resourceID: String
 }
