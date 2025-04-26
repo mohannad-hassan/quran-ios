@@ -44,6 +44,7 @@ public class SyncrhonizationManager {
 }
 
 extension SyncrhonizationManager {
+    // If configurations for a model are not set, then it's assumed to be disabled.
     static func instance(bookmarksConf: BookmarksConfiguration?,
                          notesConf: NotesConfiguration?) -> SyncrhonizationManager {
         fatalError()
